@@ -779,6 +779,7 @@ function saveQuestion(){
     media,mtype
   };
   pendingAudBlob=null; pendingImgBlob=null;
+  saveQuestionsToStorage();
   notify('Saved');
   renderEditorSidebar();
 }
@@ -787,6 +788,7 @@ function clearQuestion(){
   const{catId,qIdx}=G.editorCtx;
   if(G.questions[catId]) G.questions[catId][qIdx]={q:'',a:'',note:'',timer:null,media:null,mtype:'none'};
   pendingAudBlob=null; pendingImgBlob=null;
+  saveQuestionsToStorage();
   loadEditor(G.editorCtx.roundId,catId,qIdx,G.editorCtx.pts,G.editorCtx.ri);
   notify('Cleared');
 }
@@ -850,6 +852,58 @@ function notify(msg){
   clearTimeout(n._t); n._t=setTimeout(()=>n.classList.remove('show'),2200);
 }
 
+// ═══════════════════════════════════════════
+// PERSISTENCE — localStorage + Export/Import
+// ═══════════════════════════════════════════
+const STORAGE_KEY='pp_questions_v1';
+
+function saveQuestionsToStorage(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(G.questions)); } catch(e){}
+}
+
+function loadQuestionsFromStorage(){
+  try {
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){ G.questions=JSON.parse(raw); return true; }
+  } catch(e){}
+  return false;
+}
+
+function exportQuestions(){
+  const data=JSON.stringify(G.questions,null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='policy-prodigies-questions.json';
+  a.click(); a.remove();
+  notify('Questions exported');
+}
+
+function importQuestions(input){
+  const f=input.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try {
+      const data=JSON.parse(e.target.result);
+      G.questions=data;
+      saveQuestionsToStorage();
+      notify('Questions imported & saved');
+      renderEditorSidebar();
+    } catch(err){ notify('Invalid JSON file'); }
+  };
+  reader.readAsText(f);
+  input.value='';
+}
+
+function resetQuestionsToDefault(){
+  if(!confirm('Reset ALL questions to defaults? This cannot be undone.')) return;
+  G.questions=JSON.parse(JSON.stringify(DEFAULT_Q));
+  saveQuestionsToStorage();
+  notify('Reset to defaults');
+  renderEditorSidebar();
+}
+
 // ── INIT ──
+loadQuestionsFromStorage();
 preloadSounds();
 renderSetup();
