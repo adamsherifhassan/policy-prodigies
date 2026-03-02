@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Policy Prodigies</title>
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     SETUP
+══════════════════════════════════ -->
+<div id="setup" class="screen active">
+  <div class="setup-header">
+    <div class="setup-eyebrow">Blavatnik School of Government · Oxford</div>
+    <h1 class="setup-title">Policy <span>Prodigies</span></h1>
+    <div class="setup-sub">Masters Knowledge Challenge</div>
+  </div>
+
+  <div class="setup-card">
+    <div class="s-block">
+      <span class="s-block-title">Teams</span>
+      <div class="teams-grid" id="teams-grid"></div>
+      <div style="display:flex;gap:0.4rem;margin-top:0.5rem;">
+        <button class="btn btn-outline btn-sm" onclick="addTeam()">+ Add Team</button>
+        <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red);" onclick="removeTeam()">− Remove</button>
+      </div>
+    </div>
+
+    <div class="s-block">
+      <span class="s-block-title">Turn Order <span style="opacity:0.5;font-size:0.55rem;">(drag to reorder)</span></span>
+      <div class="turn-list" id="turn-list"></div>
+    </div>
+
+    <div class="s-block">
+      <span class="s-block-title">Background Quiz Music</span>
+      <div class="music-row">
+        <label for="music-input">🎵 Click to upload audio file (MP3, WAV, OGG)</label>
+        <input type="file" id="music-input" accept="audio/*" onchange="handleMusic(this)">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('music-input').click()">Browse</button>
+        <span class="music-loaded" id="music-status">No file</span>
+      </div>
+    </div>
+
+    <div class="s-block">
+      <span class="s-block-title">Settings</span>
+      <div class="settings-2col">
+        <div class="form-group">
+          <label class="form-label">Answer Timer (seconds)</label>
+          <input type="number" class="form-input" id="timer-setting" value="45" min="10" max="120">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Point tiers per category</label>
+          <select class="form-select" id="tiers-setting">
+            <option value="3">3 tiers (100–300)</option>
+            <option value="4">4 tiers (100–400)</option>
+            <option value="5" selected>5 tiers (100–500)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="setup-actions">
+      <button class="btn btn-dark btn-full" onclick="startGame()">▶ Start Game</button>
+      <button class="btn btn-outline" onclick="openEditor()" style="white-space:nowrap;">✏ Edit Questions</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     BOARD
+══════════════════════════════════ -->
+<div id="board" class="screen">
+
+  <!-- LEFT PANEL -->
+  <div class="side-panel" id="board-panel">
+    <div class="panel-logo">Policy <span>Prodigies</span></div>
+    <div class="panel-sub" id="round-label-panel"></div>
+    <button class="bar-toggle" id="bar-toggle-btn" onclick="toggleBarMode()">📊 Bars</button>
+    <div class="scores-list" id="scores-list"></div>
+    <div class="panel-actions">
+      <button class="btn btn-outline btn-sm btn-full" onclick="openEditor()">✏ Edit Questions</button>
+      <button class="btn btn-outline btn-sm btn-full" onclick="showScreen('setup')">⚙ Setup</button>
+      <button class="btn btn-dark btn-sm btn-full" onclick="endGame()">🏆 End Game</button>
+    </div>
+  </div>
+
+  <!-- BOARD MAIN -->
+  <div class="board-main">
+    <div class="board-topbar">
+      <div class="round-tabs" id="round-tabs"></div>
+      <div class="board-nav">
+        <button class="btn btn-outline btn-sm" onclick="prevTurn()">← Prev</button>
+        <button class="btn btn-outline btn-sm" onclick="nextTurn()">Next →</button>
+      </div>
+    </div>
+    <div class="tile-grid-wrap" id="tile-grid-wrap"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════
+     QUESTION
+══════════════════════════════════ -->
+<div id="question" class="screen">
+
+  <!-- LEFT PANEL (scores during question) -->
+  <div class="side-panel" id="q-panel">
+    <div class="panel-logo">Policy <span>Prodigies</span></div>
+    <div class="panel-sub" id="q-round-label-panel"></div>
+    <div class="scores-list" id="q-scores-list"></div>
+  </div>
+
+  <!-- QUESTION MAIN -->
+  <div class="q-main">
+    <div class="q-topbar">
+      <div class="q-meta">
+        <div class="q-breadcrumb">
+          <span class="q-crumb" id="q-round-crumb"></span>
+          <span class="q-crumb-sep">›</span>
+          <span class="q-crumb" id="q-cat-crumb"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div class="q-pts" id="q-pts-display"></div>
+          <span class="joker-pill" id="joker-pill" style="display:none;">🃏 JOKER ACTIVE</span>
+        </div>
+      </div>
+      <div class="timer-wrap">
+        <div class="timer-ring">
+          <svg viewBox="0 0 64 64" width="80" height="80">
+            <circle class="t-track" cx="32" cy="32" r="29"/>
+            <circle class="t-fill" id="t-fill" cx="32" cy="32" r="29"/>
+          </svg>
+          <div class="t-num" id="t-num">45</div>
+        </div>
+        <div class="timer-team" id="timer-team-label"></div>
+      </div>
+    </div>
+
+    <div class="q-body">
+      <div class="q-cat-label" id="q-cat-label"></div>
+      <div class="q-text" id="q-text"></div>
+      <div class="q-media" id="q-media"></div>
+      <div class="answer-box" id="answer-box">
+        <div class="ans-label">Answer</div>
+        <div class="ans-text" id="ans-text"></div>
+        <div class="ans-note" id="ans-note"></div>
+      </div>
+    </div>
+
+    <!-- HOST CONTROLS: pre-reveal (only Reveal & Stop visible) -->
+    <div class="q-footer" id="q-footer-pre">
+      <div class="q-actions">
+        <button class="btn btn-gold btn-sm" onclick="revealAnswer()" id="reveal-btn">👁 Reveal Answer</button>
+        <button class="btn btn-outline btn-sm" onclick="stopTimer()">⏹ Stop Timer</button>
+      </div>
+    </div>
+
+    <!-- HOST CONTROLS: post-reveal (award/deduct + back) -->
+    <div class="q-footer hidden" id="q-footer-post">
+      <div class="award-section">
+        <span class="award-section-label">✓ Correct — award points</span>
+        <div class="award-btns-wrap" id="award-btns"></div>
+      </div>
+      <div class="award-section">
+        <span class="award-section-label" id="deduct-label">✗ Wrong — deduct points</span>
+        <div class="award-btns-wrap" id="deduct-btns"></div>
+      </div>
+      <div class="q-actions">
+        <button class="btn btn-outline btn-sm" onclick="skipQuestion()">⏭ No points — skip</button>
+        <button class="btn btn-dark btn-sm" onclick="backToBoard()">← Back to Board</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════
+     EDITOR
+══════════════════════════════════ -->
+<div id="editor" class="screen">
+
+  <div class="editor-sidebar">
+    <div class="esb-title">Editor</div>
+    <div id="editor-sb-content"></div>
+  </div>
+
+  <div class="editor-main">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <div class="label">Question Editor</div>
+      <div style="display:flex;gap:0.4rem;">
+        <button class="btn btn-dark btn-sm" onclick="saveQuestion()">💾 Save Question</button>
+        <button class="btn btn-outline btn-sm" onclick="closeEditor()">✕ Close</button>
+      </div>
+    </div>
+    <div id="editor-form">
+      <p style="color:var(--ink3);font-size:0.82rem;">Select a question from the sidebar to begin editing.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════
+     END
+══════════════════════════════════ -->
+<div id="end" class="screen">
+  <div class="end-header">
+    <div class="end-eyebrow">Final Results</div>
+    <h1 class="end-title">The <span>Verdict</span></h1>
+  </div>
+  <div class="podium" id="podium"></div>
+  <div class="final-list" id="final-list"></div>
+  <div class="end-actions">
+    <button class="btn btn-dark" onclick="showScreen('setup')">🔄 New Game</button>
+    <button class="btn btn-outline" onclick="showScreen('board')">← Back to Board</button>
+  </div>
+</div>
+
+<!-- JOKER MODAL -->
+<div class="overlay" id="joker-overlay">
+  <div class="modal">
+    <h2>🃏 Play your Joker?</h2>
+    <p id="joker-modal-text"></p>
+    <div class="modal-btns">
+      <button class="btn btn-gold" onclick="confirmJoker()">Yes, Play Joker</button>
+      <button class="btn btn-outline" onclick="cancelJoker()">No, Keep it</button>
+    </div>
+  </div>
+</div>
+
+<div class="notif" id="notif"></div>
+
+<script src="src/game.js"></script>
+</body>
+</html>
