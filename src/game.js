@@ -493,8 +493,19 @@ function openQuestion(roundIdx,catId,pts,jokerActive){
   // Media
   const med=document.getElementById('q-media');
   med.innerHTML='';
-  if(q.media&&q.mtype==='image') med.innerHTML=`<img src="${q.media}" alt="">`;
-  if(q.media&&q.mtype==='audio') playQAudio(q.media);
+  if(q.media){
+    if(q.media.startsWith('idb://')){
+      getMediaFile(q.media.slice(6)).then(blob=>{
+        if(!blob) return;
+        const url=URL.createObjectURL(blob);
+        if(q.mtype==='image') med.innerHTML=`<img src="${url}" alt="">`;
+        if(q.mtype==='audio') playQAudio(url);
+      });
+    } else {
+      if(q.mtype==='image') med.innerHTML=`<img src="${q.media}" alt="">`;
+      if(q.mtype==='audio') playQAudio(q.media);
+    }
+  }
 
   // Scores panel on question screen
   document.getElementById('q-round-label-panel').textContent=round.name;
@@ -719,24 +730,24 @@ function loadEditor(roundId,catId,qIdx,pts,ri){
       </div>
       <div id="ef-media-wrap" style="display:${q.mtype&&q.mtype!=='none'?'block':'none'}">
         <div class="form-group" id="ef-audio-g" style="display:${q.mtype==='audio'?'block':'none'}">
-          <label class="form-label">Audio — file path in repo (recommended, permanent)</label>
-          <input type="text" class="form-input" id="ef-aud-url" placeholder="e.g. src/media/song1.mp3" value="${q.media&&q.mtype==='audio'&&!q.media.startsWith('blob:')?q.media:''}">
-          <label class="form-label" style="margin-top:0.5rem;">Or upload a local file (temporary — lost on refresh)</label>
+          <label class="form-label">Audio file — upload once, saved in browser permanently</label>
           <div class="audio-upload">
             <input type="file" id="ef-aud-input" accept="audio/*" onchange="handleEditorAudio(this)">
-            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-aud-input').click()">Browse local file</button>
-            <span class="audio-status" id="ef-aud-status">${q.media&&q.mtype==='audio'&&q.media.startsWith('blob:')?'Local file loaded':'No local file'}</span>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-aud-input').click()">📁 Browse & Save</button>
+            <span class="audio-status" id="ef-aud-status">${q.media&&q.mtype==='audio'?(q.media.startsWith('idb://')?'✓ Saved in browser':(q.media.startsWith('blob:')?'Temporary':'Using repo file')):'No file'}</span>
           </div>
+          <label class="form-label" style="margin-top:0.5rem;opacity:0.6;">Advanced: use a file path from the repo instead</label>
+          <input type="text" class="form-input" id="ef-aud-url" placeholder="e.g. src/media/song1.mp3" value="${q.media&&q.mtype==='audio'&&!q.media.startsWith('idb://')&&!q.media.startsWith('blob:')?q.media:''}">
         </div>
         <div class="form-group" id="ef-image-g" style="display:${q.mtype==='image'?'block':'none'}">
-          <label class="form-label">Image — file path in repo (recommended, permanent)</label>
-          <input type="text" class="form-input" id="ef-img-url" placeholder="e.g. src/media/photo1.jpg" value="${q.media&&q.mtype==='image'&&!q.media.startsWith('blob:')?q.media:''}">
-          <label class="form-label" style="margin-top:0.5rem;">Or upload a local file (temporary — lost on refresh)</label>
+          <label class="form-label">Image file — upload once, saved in browser permanently</label>
           <div class="audio-upload">
             <input type="file" id="ef-img-input" accept="image/*" onchange="handleEditorImage(this)">
-            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-img-input').click()">Browse local file</button>
-            <span class="audio-status" id="ef-img-status">${q.media&&q.mtype==='image'&&q.media.startsWith('blob:')?'Local file loaded':'No local file'}</span>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-img-input').click()">📁 Browse & Save</button>
+            <span class="audio-status" id="ef-img-status">${q.media&&q.mtype==='image'?(q.media.startsWith('idb://')?'✓ Saved in browser':(q.media.startsWith('blob:')?'Temporary':'Using repo file')):'No file'}</span>
           </div>
+          <label class="form-label" style="margin-top:0.5rem;opacity:0.6;">Advanced: use a file path from the repo instead</label>
+          <input type="text" class="form-input" id="ef-img-url" placeholder="e.g. src/media/photo1.jpg" value="${q.media&&q.mtype==='image'&&!q.media.startsWith('idb://')&&!q.media.startsWith('blob:')?q.media:''}">
         </div>
       </div>
       <div class="em-actions">
@@ -753,15 +764,21 @@ function toggleMedia(){
   document.getElementById('ef-audio-g').style.display=t==='audio'?'block':'none';
   document.getElementById('ef-image-g').style.display=t==='image'?'block':'none';
 }
-function handleEditorAudio(input){
+async function handleEditorAudio(input){
   const f=input.files[0]; if(!f) return;
-  pendingAudBlob=URL.createObjectURL(f);
-  document.getElementById('ef-aud-status').textContent=f.name.substring(0,18);
+  const key=`media_${G.editorCtx.catId}_${G.editorCtx.qIdx}_aud`;
+  document.getElementById('ef-aud-status').textContent='Saving…';
+  await saveMediaFile(key,f);
+  pendingAudBlob=`idb://${key}`;
+  document.getElementById('ef-aud-status').textContent='✓ '+f.name.substring(0,16)+' (saved)';
 }
-function handleEditorImage(input){
+async function handleEditorImage(input){
   const f=input.files[0]; if(!f) return;
-  pendingImgBlob=URL.createObjectURL(f);
-  document.getElementById('ef-img-status').textContent=f.name.substring(0,18);
+  const key=`media_${G.editorCtx.catId}_${G.editorCtx.qIdx}_img`;
+  document.getElementById('ef-img-status').textContent='Saving…';
+  await saveMediaFile(key,f);
+  pendingImgBlob=`idb://${key}`;
+  document.getElementById('ef-img-status').textContent='✓ '+f.name.substring(0,16)+' (saved)';
 }
 function saveQuestion(){
   if(!G.editorCtx){notify('Select a question first');return;}
@@ -772,11 +789,15 @@ function saveQuestion(){
   let media=null;
   if(mtype==='audio'){
     const urlVal=(document.getElementById('ef-aud-url')?.value||'').trim();
-    media=urlVal||pendingAudBlob||null;
+    if(urlVal) media=urlVal;
+    else if(pendingAudBlob) media=pendingAudBlob;
+    else media=G.questions[catId][qIdx]?.media||null;
   }
   if(mtype==='image'){
     const urlVal=(document.getElementById('ef-img-url')?.value||'').trim();
-    media=urlVal||pendingImgBlob||null;
+    if(urlVal) media=urlVal;
+    else if(pendingImgBlob) media=pendingImgBlob;
+    else media=G.questions[catId][qIdx]?.media||null;
   }
   const timerVal=parseInt(document.getElementById('ef-timer')?.value);
   G.questions[catId][qIdx]={
@@ -794,6 +815,8 @@ function saveQuestion(){
 function clearQuestion(){
   if(!G.editorCtx) return;
   const{catId,qIdx}=G.editorCtx;
+  const existing=G.questions[catId]?.[qIdx];
+  if(existing?.media?.startsWith('idb://')) deleteMediaFile(existing.media.slice(6));
   if(G.questions[catId]) G.questions[catId][qIdx]={q:'',a:'',note:'',timer:null,media:null,mtype:'none'};
   pendingAudBlob=null; pendingImgBlob=null;
   saveQuestionsToStorage();
@@ -858,6 +881,41 @@ function notify(msg){
   const n=document.getElementById('notif');
   n.textContent=msg; n.classList.add('show');
   clearTimeout(n._t); n._t=setTimeout(()=>n.classList.remove('show'),2200);
+}
+
+// ═══════════════════════════════════════════
+// MEDIA STORAGE — IndexedDB (persistent file storage)
+// ═══════════════════════════════════════════
+let _mediaDB=null;
+function openMediaDB(){
+  return new Promise((res,rej)=>{
+    if(_mediaDB){res(_mediaDB);return;}
+    const r=indexedDB.open('pp_media',1);
+    r.onupgradeneeded=e=>e.target.result.createObjectStore('files');
+    r.onsuccess=e=>{_mediaDB=e.target.result;res(_mediaDB);};
+    r.onerror=()=>rej();
+  });
+}
+function saveMediaFile(key,blob){
+  return openMediaDB().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction('files','readwrite');
+    tx.objectStore('files').put(blob,key);
+    tx.oncomplete=res; tx.onerror=rej;
+  }));
+}
+function getMediaFile(key){
+  return openMediaDB().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction('files','readonly');
+    const r=tx.objectStore('files').get(key);
+    r.onsuccess=()=>res(r.result); r.onerror=rej;
+  }));
+}
+function deleteMediaFile(key){
+  return openMediaDB().then(db=>new Promise(res=>{
+    const tx=db.transaction('files','readwrite');
+    tx.objectStore('files').delete(key);
+    tx.oncomplete=res;
+  }));
 }
 
 // ═══════════════════════════════════════════
