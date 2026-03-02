@@ -428,7 +428,7 @@ function renderTileGrid(){
       tile.dataset.pts=pts;
       tile.innerHTML=`<span class="tile-val">${pts}</span>${!used?`<div class="tile-tooltip">${cat.name} · ${pts} pts</div>`:''}`;
       if(!used) tile.onclick=()=>{
-        playWhoosh();
+        try{playWhoosh();}catch(e){}
         tile.classList.add('flipping');
         setTimeout(()=>handleTileClick(G.activeRound,cat.id,pts),350);
       };
