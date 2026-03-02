@@ -168,18 +168,36 @@ function beep(f,d,v=0.12,t='sine',delay=0){
   o.connect(g);g.connect(c.destination);
   o.start(c.currentTime+delay);o.stop(c.currentTime+delay+d+0.05);
 }
-// MP3-based correct/wrong sounds
-let correctAudio=null, wrongAudio=null;
-function preloadSounds(){
-  correctAudio=new Audio('src/correct.mp3');
-  wrongAudio=new Audio('src/wrong.mp3');
-  correctAudio.preload='auto'; wrongAudio.preload='auto';
+// MP3-based correct/wrong sounds — pre-decoded into AudioBuffers for zero-latency playback
+let correctBuffer=null, wrongBuffer=null;
+async function preloadSounds(){
+  try {
+    const ac=getAC();
+    const [r1,r2]=await Promise.all([
+      fetch('src/correct.mp3').then(r=>r.arrayBuffer()),
+      fetch('src/wrong.mp3').then(r=>r.arrayBuffer())
+    ]);
+    [correctBuffer,wrongBuffer]=await Promise.all([
+      ac.decodeAudioData(r1),
+      ac.decodeAudioData(r2)
+    ]);
+  } catch(e){}
 }
 function playCorrect(){
-  if(correctAudio){correctAudio.currentTime=0;correctAudio.volume=0.7;correctAudio.play().catch(()=>{});}
+  if(!correctBuffer) return;
+  const ac=getAC();
+  if(ac.state==='suspended') ac.resume();
+  const src=ac.createBufferSource(), g=ac.createGain();
+  src.buffer=correctBuffer; g.gain.value=0.7;
+  src.connect(g); g.connect(ac.destination); src.start(0);
 }
 function playWrong(){
-  if(wrongAudio){wrongAudio.currentTime=0;wrongAudio.volume=0.7;wrongAudio.play().catch(()=>{});}
+  if(!wrongBuffer) return;
+  const ac=getAC();
+  if(ac.state==='suspended') ac.resume();
+  const src=ac.createBufferSource(), g=ac.createGain();
+  src.buffer=wrongBuffer; g.gain.value=0.7;
+  src.connect(g); g.connect(ac.destination); src.start(0);
 }
 function playTimeUp(){beep(400,.15,.15,'sawtooth',0);beep(350,.15,.15,'sawtooth',.18);beep(300,.3,.15,'sawtooth',.36);}
 // Feature 9: Whoosh sound for tile selection
@@ -505,7 +523,7 @@ function openQuestion(roundIdx,catId,pts,jokerActive){
   document.getElementById('q-footer-post').classList.add('hidden');
 
   showScreen('question');
-  startTimer(G.timerDuration);
+  startTimer(q.timer || G.timerDuration);
   startMusic();
 }
 
@@ -547,29 +565,20 @@ function deductPts(i,penalty,btn){
   });
 }
 
-// Suspense overlay — dramatic pause before showing correct/wrong
+// Reveal overlay — immediate correct/wrong synced with sound
 function showSuspense(team, isCorrect, pts, applyFn){
+  if(isCorrect) playCorrect(); else playWrong();
   const ov=document.createElement('div');
   ov.className='suspense-overlay';
   ov.innerHTML=`
-    <div class="suspense-text">${team.emoji||''} ${team.name}</div>
-    <div class="suspense-dots">· · ·</div>`;
+    <div class="suspense-result ${isCorrect?'correct':'wrong'}">${isCorrect?'✓ Correct!':'✗ Wrong!'}</div>
+    <div class="suspense-score-change">${team.emoji||''} ${team.name} ${isCorrect?'+':'-'}${pts}</div>`;
   document.body.appendChild(ov);
-
-  // Phase 2: after 1.5s pause, show result + play sound
+  applyFn();
   setTimeout(()=>{
-    if(isCorrect) playCorrect(); else playWrong();
-    ov.innerHTML=`
-      <div class="suspense-result ${isCorrect?'correct':'wrong'}">${isCorrect?'✓ Correct!':'✗ Wrong!'}</div>
-      <div class="suspense-score-change">${team.emoji||''} ${team.name} ${isCorrect?'+':'-'}${pts}</div>`;
-    applyFn();
-
-    // Phase 3: auto-dismiss after 2s
-    setTimeout(()=>{
-      ov.style.opacity='0';ov.style.transition='opacity 0.3s';
-      setTimeout(()=>ov.remove(),300);
-    },2000);
-  },1500);
+    ov.style.opacity='0'; ov.style.transition='opacity 0.3s';
+    setTimeout(()=>ov.remove(),300);
+  },2000);
 }
 
 // Feature 2: Floating score animation (kept for undo feedback)
@@ -675,11 +684,12 @@ function renderEditorSidebar(){
   });
 }
 
-let pendingAudBlob=null;
+let pendingAudBlob=null, pendingImgBlob=null;
 function loadEditor(roundId,catId,qIdx,pts,ri){
   G.editorCtx={roundId,catId,qIdx,pts,ri};
-  const q=(G.questions[catId]||[])[qIdx]||{q:'',a:'',note:'',media:'',mtype:'none'};
+  const q=(G.questions[catId]||[])[qIdx]||{q:'',a:'',note:'',timer:null,media:'',mtype:'none'};
   const cat=ROUNDS[ri].categories.find(c=>c.id===catId);
+  pendingAudBlob=null; pendingImgBlob=null;
   document.getElementById('editor-form').innerHTML=`
     <div class="em-title">Editing: <span>${cat.name} — ${pts} pts</span></div>
     <div class="em-form">
@@ -696,11 +706,15 @@ function loadEditor(roundId,catId,qIdx,pts,ri){
         <input type="text" class="form-input" id="ef-note" value="${q.note||''}">
       </div>
       <div class="form-group">
+        <label class="form-label">Custom timer (seconds) — leave blank to use default (${G.timerDuration}s)</label>
+        <input type="number" class="form-input" id="ef-timer" value="${q.timer||''}" min="5" max="120" placeholder="${G.timerDuration}">
+      </div>
+      <div class="form-group">
         <label class="form-label">Media type</label>
         <select class="form-select2" id="ef-mtype" onchange="toggleMedia()">
           <option value="none" ${!q.mtype||q.mtype==='none'?'selected':''}>None</option>
           <option value="audio" ${q.mtype==='audio'?'selected':''}>Audio clip (name this song/artist)</option>
-          <option value="image" ${q.mtype==='image'?'selected':''}>Image (URL)</option>
+          <option value="image" ${q.mtype==='image'?'selected':''}>Image (upload file)</option>
         </select>
       </div>
       <div id="ef-media-wrap" style="display:${q.mtype&&q.mtype!=='none'?'block':'none'}">
@@ -714,8 +728,13 @@ function loadEditor(roundId,catId,qIdx,pts,ri){
           </div>
         </div>
         <div class="form-group" id="ef-image-g" style="display:${q.mtype==='image'?'block':'none'}">
-          <label class="form-label">Image URL</label>
-          <input type="text" class="form-input" id="ef-img" value="${q.media&&q.mtype==='image'?q.media:''}">
+          <label class="form-label">Image file</label>
+          <div class="audio-upload">
+            <label for="ef-img-input">🖼 Upload image file</label>
+            <input type="file" id="ef-img-input" accept="image/*" onchange="handleEditorImage(this)">
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-img-input').click()">Browse</button>
+            <span class="audio-status" id="ef-img-status">${q.media&&q.mtype==='image'?'Loaded':'No file'}</span>
+          </div>
         </div>
       </div>
       <div class="em-actions">
@@ -737,29 +756,37 @@ function handleEditorAudio(input){
   pendingAudBlob=URL.createObjectURL(f);
   document.getElementById('ef-aud-status').textContent=f.name.substring(0,18);
 }
+function handleEditorImage(input){
+  const f=input.files[0]; if(!f) return;
+  pendingImgBlob=URL.createObjectURL(f);
+  document.getElementById('ef-img-status').textContent=f.name.substring(0,18);
+}
 function saveQuestion(){
   if(!G.editorCtx){notify('Select a question first');return;}
   const{catId,qIdx}=G.editorCtx;
   if(!G.questions[catId]) G.questions[catId]=[];
-  while(G.questions[catId].length<=qIdx) G.questions[catId].push({q:'',a:'',note:'',media:null,mtype:'none'});
+  while(G.questions[catId].length<=qIdx) G.questions[catId].push({q:'',a:'',note:'',timer:null,media:null,mtype:'none'});
   const mtype=document.getElementById('ef-mtype')?.value||'none';
   let media=null;
   if(mtype==='audio') media=pendingAudBlob||G.questions[catId][qIdx]?.media||null;
-  if(mtype==='image') media=document.getElementById('ef-img')?.value||null;
+  if(mtype==='image') media=pendingImgBlob||G.questions[catId][qIdx]?.media||null;
+  const timerVal=parseInt(document.getElementById('ef-timer')?.value);
   G.questions[catId][qIdx]={
     q:document.getElementById('ef-q')?.value||'',
     a:document.getElementById('ef-a')?.value||'',
     note:document.getElementById('ef-note')?.value||'',
+    timer:timerVal>0?timerVal:null,
     media,mtype
   };
-  pendingAudBlob=null;
+  pendingAudBlob=null; pendingImgBlob=null;
   notify('Saved');
   renderEditorSidebar();
 }
 function clearQuestion(){
   if(!G.editorCtx) return;
   const{catId,qIdx}=G.editorCtx;
-  if(G.questions[catId]) G.questions[catId][qIdx]={q:'',a:'',note:'',media:null,mtype:'none'};
+  if(G.questions[catId]) G.questions[catId][qIdx]={q:'',a:'',note:'',timer:null,media:null,mtype:'none'};
+  pendingAudBlob=null; pendingImgBlob=null;
   loadEditor(G.editorCtx.roundId,catId,qIdx,G.editorCtx.pts,G.editorCtx.ri);
   notify('Cleared');
 }
