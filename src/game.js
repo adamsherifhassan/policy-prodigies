@@ -714,26 +714,28 @@ function loadEditor(roundId,catId,qIdx,pts,ri){
         <select class="form-select2" id="ef-mtype" onchange="toggleMedia()">
           <option value="none" ${!q.mtype||q.mtype==='none'?'selected':''}>None</option>
           <option value="audio" ${q.mtype==='audio'?'selected':''}>Audio clip (name this song/artist)</option>
-          <option value="image" ${q.mtype==='image'?'selected':''}>Image (upload file)</option>
+          <option value="image" ${q.mtype==='image'?'selected':''}>Image</option>
         </select>
       </div>
       <div id="ef-media-wrap" style="display:${q.mtype&&q.mtype!=='none'?'block':'none'}">
         <div class="form-group" id="ef-audio-g" style="display:${q.mtype==='audio'?'block':'none'}">
-          <label class="form-label">Audio file</label>
+          <label class="form-label">Audio — file path in repo (recommended, permanent)</label>
+          <input type="text" class="form-input" id="ef-aud-url" placeholder="e.g. src/media/song1.mp3" value="${q.media&&q.mtype==='audio'&&!q.media.startsWith('blob:')?q.media:''}">
+          <label class="form-label" style="margin-top:0.5rem;">Or upload a local file (temporary — lost on refresh)</label>
           <div class="audio-upload">
-            <label for="ef-aud-input">🎵 Upload audio file</label>
             <input type="file" id="ef-aud-input" accept="audio/*" onchange="handleEditorAudio(this)">
-            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-aud-input').click()">Browse</button>
-            <span class="audio-status" id="ef-aud-status">${q.media&&q.mtype==='audio'?'Loaded':'No file'}</span>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-aud-input').click()">Browse local file</button>
+            <span class="audio-status" id="ef-aud-status">${q.media&&q.mtype==='audio'&&q.media.startsWith('blob:')?'Local file loaded':'No local file'}</span>
           </div>
         </div>
         <div class="form-group" id="ef-image-g" style="display:${q.mtype==='image'?'block':'none'}">
-          <label class="form-label">Image file</label>
+          <label class="form-label">Image — file path in repo (recommended, permanent)</label>
+          <input type="text" class="form-input" id="ef-img-url" placeholder="e.g. src/media/photo1.jpg" value="${q.media&&q.mtype==='image'&&!q.media.startsWith('blob:')?q.media:''}">
+          <label class="form-label" style="margin-top:0.5rem;">Or upload a local file (temporary — lost on refresh)</label>
           <div class="audio-upload">
-            <label for="ef-img-input">🖼 Upload image file</label>
             <input type="file" id="ef-img-input" accept="image/*" onchange="handleEditorImage(this)">
-            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-img-input').click()">Browse</button>
-            <span class="audio-status" id="ef-img-status">${q.media&&q.mtype==='image'?'Loaded':'No file'}</span>
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('ef-img-input').click()">Browse local file</button>
+            <span class="audio-status" id="ef-img-status">${q.media&&q.mtype==='image'&&q.media.startsWith('blob:')?'Local file loaded':'No local file'}</span>
           </div>
         </div>
       </div>
@@ -768,8 +770,14 @@ function saveQuestion(){
   while(G.questions[catId].length<=qIdx) G.questions[catId].push({q:'',a:'',note:'',timer:null,media:null,mtype:'none'});
   const mtype=document.getElementById('ef-mtype')?.value||'none';
   let media=null;
-  if(mtype==='audio') media=pendingAudBlob||G.questions[catId][qIdx]?.media||null;
-  if(mtype==='image') media=pendingImgBlob||G.questions[catId][qIdx]?.media||null;
+  if(mtype==='audio'){
+    const urlVal=(document.getElementById('ef-aud-url')?.value||'').trim();
+    media=urlVal||pendingAudBlob||null;
+  }
+  if(mtype==='image'){
+    const urlVal=(document.getElementById('ef-img-url')?.value||'').trim();
+    media=urlVal||pendingImgBlob||null;
+  }
   const timerVal=parseInt(document.getElementById('ef-timer')?.value);
   G.questions[catId][qIdx]={
     q:document.getElementById('ef-q')?.value||'',
