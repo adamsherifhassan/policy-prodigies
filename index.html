@@ -149,16 +149,8 @@
       </div>
     </div>
 
-    <!-- HOST CONTROLS: pre-reveal (only Reveal & Stop visible) -->
-    <div class="q-footer" id="q-footer-pre">
-      <div class="q-actions">
-        <button class="btn btn-gold btn-sm" onclick="revealAnswer()" id="reveal-btn">👁 Reveal Answer</button>
-        <button class="btn btn-outline btn-sm" onclick="stopTimer()">⏹ Stop Timer</button>
-      </div>
-    </div>
-
-    <!-- HOST CONTROLS: post-reveal (award/deduct + back) -->
-    <div class="q-footer hidden" id="q-footer-post">
+    <!-- HOST CONTROLS: always visible -->
+    <div class="q-footer" id="q-footer">
       <div class="award-section">
         <span class="award-section-label">✓ Correct — award points</span>
         <div class="award-btns-wrap" id="award-btns"></div>
@@ -168,7 +160,9 @@
         <div class="award-btns-wrap" id="deduct-btns"></div>
       </div>
       <div class="q-actions">
-        <button class="btn btn-outline btn-sm" onclick="skipQuestion()">⏭ No points — skip</button>
+        <button class="btn btn-gold btn-sm" onclick="revealAnswer()" id="reveal-btn">👁 Reveal Answer</button>
+        <button class="btn btn-outline btn-sm" onclick="stopTimer()">⏹ Stop Timer</button>
+        <button class="btn btn-outline btn-sm" onclick="skipQuestion()">⏭ Skip</button>
         <button class="btn btn-dark btn-sm" onclick="backToBoard()">← Back to Board</button>
       </div>
     </div>

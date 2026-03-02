@@ -529,10 +529,6 @@ function openQuestion(roundIdx,catId,pts,jokerActive){
     d.onclick=()=>deductPts(i,penalty,d); db.appendChild(d);
   });
 
-  // Reset footers: show pre-reveal, hide post-reveal
-  document.getElementById('q-footer-pre').classList.remove('hidden');
-  document.getElementById('q-footer-post').classList.add('hidden');
-
   showScreen('question');
   startTimer(q.timer || G.timerDuration);
   startMusic();
@@ -548,7 +544,9 @@ function awardPts(i,pts,btn){
     renderScoresPanel('q-scores-list');
     return;
   }
-  // Suspense flow: show overlay → pause → reveal result
+  // Stop timer/music immediately on click so sound is in sync
+  stopTimer(); stopMusic();
+  document.querySelector('.q-main').classList.remove('urgent');
   showSuspense(G.teams[i], true, pts, ()=>{
     btn.classList.add('awarded');
     G.teams[i].score+=pts;
@@ -568,6 +566,9 @@ function deductPts(i,penalty,btn){
     renderScoresPanel('q-scores-list');
     return;
   }
+  // Stop timer/music immediately on click so sound is in sync
+  stopTimer(); stopMusic();
+  document.querySelector('.q-main').classList.remove('urgent');
   showSuspense(G.teams[i], false, penalty, ()=>{
     btn.classList.add('deducted');
     G.teams[i].score-=penalty;
@@ -613,9 +614,6 @@ function revealAnswer(){
   document.getElementById('answer-box').classList.add('show');
   stopTimer(); stopMusic();
   document.querySelector('.q-main').classList.remove('urgent');
-  // Show post-reveal controls, hide pre-reveal
-  document.getElementById('q-footer-pre').classList.add('hidden');
-  document.getElementById('q-footer-post').classList.remove('hidden');
 }
 
 function backToBoard(){
